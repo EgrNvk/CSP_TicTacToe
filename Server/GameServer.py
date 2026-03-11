@@ -1,4 +1,5 @@
 import socket
+import threading
 from Server.GameSession import GameSession
 
 
@@ -22,7 +23,7 @@ class GameServer:
             client, addr = self.server.accept()
             print(f"Підключився клієнт: {addr}")
 
-            self.handle_new_client(client, addr)
+            self.new_client(client, addr)
 
     def new_client(self, client, addr):
         if self.waiting_player is None:
