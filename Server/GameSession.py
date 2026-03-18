@@ -1,5 +1,6 @@
 import threading
 import json
+import os
 
 
 class GameSession:
@@ -16,24 +17,31 @@ class GameSession:
             ["", "", ""],
             ["", "", ""]
         ]
+
         self.current_turn = "X"
         self.winner = None
         self.lock = threading.Lock()
 
+        self.images_dir = "images"
+
     def start(self):
         print(f"Session #{self.session_id} started")
 
+        self.send_start_info()
+        self.send_avatars()
         self.broadcast()
 
         threading.Thread(target=self.service_client, args=("X",), daemon=True).start()
         threading.Thread(target=self.service_client, args=("O",), daemon=True).start()
 
     def service_client(self, symbol):
-        conn = self.clients[symbol]
+        client = self.clients[symbol]
+        conn = client.conn
 
         while True:
             try:
                 data = conn.recv(1024).decode()
+
                 if not data:
                     print(f"Session #{self.session_id}: {symbol} disconnected")
                     break
@@ -43,8 +51,10 @@ class GameSession:
                 col = move["col"]
 
                 self.move(symbol, row, col)
-            except:
-                pass
+
+            except Exception as e:
+                print(f"Session #{self.session_id}: error for {symbol}: {e}")
+                break
 
     def move(self, symbol, row, col):
         with self.lock:
@@ -101,9 +111,72 @@ class GameSession:
 
         return False
 
-    def broadcast(self):
-        for symbol, conn in self.clients.items():
+    def send_start_info(self):
+        for symbol, client in self.clients.items():
+            conn = client.conn
+
             message = {
+                "type": "start",
+                "your_symbol": symbol,
+                "opponent_symbol": "O" if symbol == "X" else "X",
+                "your_login": client.login,
+                "your_name": client.name,
+                "opponent_login": self.clients["O"].login if symbol == "X" else self.clients["X"].login,
+                "opponent_name": self.clients["O"].name if symbol == "X" else self.clients["X"].name
+            }
+
+            try:
+                conn.send((json.dumps(message) + "\n").encode())
+            except Exception as e:
+                print(f"Session #{self.session_id}: start info error for {symbol}: {e}")
+
+    def send_avatars(self):
+
+        for symbol, client in self.clients.items():
+
+            conn = client.conn
+
+            opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
+
+            try:
+
+                path = os.path.join(self.images_dir, client.image)
+
+                if os.path.exists(path):
+                    with open(path, "rb") as f:
+                        data = f.read()
+                else:
+                    data = b""
+
+                conn.sendall(b"YOUR_AVATAR\n")
+                conn.sendall((str(len(data)) + "\n").encode())
+
+                if data:
+                    conn.sendall(data)
+
+                path = os.path.join(self.images_dir, opponent.image)
+
+                if os.path.exists(path):
+                    with open(path, "rb") as f:
+                        data = f.read()
+                else:
+                    data = b""
+
+                conn.sendall(b"OPPONENT_AVATAR\n")
+                conn.sendall((str(len(data)) + "\n").encode())
+
+                if data:
+                    conn.sendall(data)
+
+            except Exception as e:
+                print(f"Session #{self.session_id}: avatar send error for {symbol}: {e}")
+
+    def broadcast(self):
+        for symbol, client in self.clients.items():
+            conn = client.conn
+
+            message = {
+                "type": "game_state",
                 "board": self.board,
                 "current_turn": self.current_turn,
                 "your_turn": symbol == self.current_turn and self.winner is None,
@@ -111,6 +184,6 @@ class GameSession:
             }
 
             try:
-                conn.send(json.dumps(message).encode())
-            except:
-                pass
+                conn.send((json.dumps(message) + "\n").encode())
+            except Exception as e:
+                print(f"Session #{self.session_id}: broadcast error for {symbol}: {e}")
