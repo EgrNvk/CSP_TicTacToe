@@ -5,7 +5,7 @@ class GameClientView:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("TicTacToe")
-        self.root.geometry("420x520")
+        self.root.geometry("700x700")
         self.root.resizable(False, False)
 
         self.avatar_path = ""
@@ -26,6 +26,9 @@ class GameClientView:
         self.build_upload_frame()
         self.build_waiting_frame()
         self.build_game_frame()
+
+        self.my_avatar_image = None
+        self.opponent_avatar_image = None
 
         self.show_start()
 
@@ -96,8 +99,26 @@ class GameClientView:
         self.label_waiting.pack(pady=30)
 
     def build_game_frame(self):
-        self.label_players = tk.Label(self.game_frame, text="", font=("Arial", 12))
-        self.label_players.pack(pady=5)
+        self.frame_players = tk.Frame(self.game_frame)
+        self.frame_players.pack(pady=5)
+
+        self.frame_me = tk.Frame(self.frame_players)
+        self.frame_me.grid(row=0, column=0, padx=20)
+
+        self.label_my_avatar = tk.Label(self.frame_me, text="Мій аватар")
+        self.label_my_avatar.pack()
+
+        self.label_my_name = tk.Label(self.frame_me, text="Я")
+        self.label_my_name.pack()
+
+        self.frame_opponent = tk.Frame(self.frame_players)
+        self.frame_opponent.grid(row=0, column=1, padx=20)
+
+        self.label_opponent_avatar = tk.Label(self.frame_opponent, text="Аватар суперника")
+        self.label_opponent_avatar.pack()
+
+        self.label_opponent_name = tk.Label(self.frame_opponent, text="Суперник")
+        self.label_opponent_name.pack()
 
         self.label_status = tk.Label(self.game_frame, text="Очікування...", font=("Arial", 14))
         self.label_status.pack(pady=10)
@@ -179,9 +200,17 @@ class GameClientView:
         self.label_status.config(text=text)
 
     def set_players_info(self, your_symbol, your_name, opponent_name):
-        self.label_players.config(
-            text=f"Ви: {your_name} ({your_symbol})   |   Суперник: {opponent_name}"
-        )
+        self.label_my_name.config(text=f"{your_name} ({your_symbol})")
+        self.label_opponent_name.config(text=opponent_name)
+
+    def set_avatars(self, your_avatar_path, opponent_avatar_path):
+        if your_avatar_path:
+            self.my_avatar_image = tk.PhotoImage(file=your_avatar_path)
+            self.label_my_avatar.config(image=self.my_avatar_image, text="")
+
+        if opponent_avatar_path:
+            self.opponent_avatar_image = tk.PhotoImage(file=opponent_avatar_path)
+            self.label_opponent_avatar.config(image=self.opponent_avatar_image, text="")
 
     def set_buttons_state(self, state):
         for row in range(3):

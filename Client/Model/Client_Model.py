@@ -28,8 +28,11 @@ class GameClientModel:
         self.opponent_login = ""
         self.opponent_name = ""
 
-        self.your_avatar = b""
-        self.opponent_avatar = b""
+        self.your_avatar_filename = ""
+        self.opponent_avatar_filename = ""
+
+        self.your_avatar_path = ""
+        self.opponent_avatar_path = ""
 
     def connect(self):
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -72,7 +75,6 @@ class GameClientModel:
         return data
 
     def send_form(self, action, login, password, name=""):
-
         form = {
             "action": action,
             "login": login,
@@ -97,7 +99,6 @@ class GameClientModel:
             return f"ERROR {e}"
 
     def send_file(self, login, path):
-
         if not os.path.exists(path):
             return "ERROR FILE NOT FOUND"
 
@@ -160,19 +161,51 @@ class GameClientModel:
         return message
 
     def receive_avatars(self):
+        os.makedirs("avatars_cache", exist_ok=True)
 
+        # свій аватар
         avatar_type = self.recv_line()
-        size = int(self.recv_line())
-        self.your_avatar = self.recv_exact(size)
+        filename = self.recv_line()
+        size_line = self.recv_line()
 
+        if avatar_type != "YOUR_AVATAR":
+            return None
+
+        size = int(size_line) if size_line else 0
+        data = self.recv_exact(size) if size > 0 else b""
+
+        self.your_avatar_filename = filename
+        if filename:
+            self.your_avatar_path = os.path.join("avatars_cache", filename)
+            with open(self.your_avatar_path, "wb") as f:
+                f.write(data)
+        else:
+            self.your_avatar_path = ""
+
+        # аватар суперника
         avatar_type = self.recv_line()
-        size = int(self.recv_line())
-        self.opponent_avatar = self.recv_exact(size)
+        filename = self.recv_line()
+        size_line = self.recv_line()
+
+        if avatar_type != "OPPONENT_AVATAR":
+            return None
+
+        size = int(size_line) if size_line else 0
+        data = self.recv_exact(size) if size > 0 else b""
+
+        self.opponent_avatar_filename = filename
+        if filename:
+            self.opponent_avatar_path = os.path.join("avatars_cache", filename)
+            with open(self.opponent_avatar_path, "wb") as f:
+                f.write(data)
+        else:
+            self.opponent_avatar_path = ""
 
         return {
-            "your_avatar": self.your_avatar,
-            "opponent_avatar": self.opponent_avatar
+            "your_avatar_path": self.your_avatar_path,
+            "opponent_avatar_path": self.opponent_avatar_path
         }
+
     def receive(self):
         line = self.recv_line()
 

@@ -153,33 +153,39 @@ class GameSession:
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             try:
-                path = os.path.join(self.images_dir, client.image)
+                # свій аватар
+                your_filename = client.image if client.image else ""
+                your_path = os.path.join(self.images_dir, your_filename)
 
-                if client.image and os.path.isfile(path):
-                    with open(path, "rb") as f:
-                        data = f.read()
+                if your_filename and os.path.isfile(your_path):
+                    with open(your_path, "rb") as f:
+                        your_data = f.read()
                 else:
-                    data = b""
+                    your_data = b""
 
                 conn.sendall(b"YOUR_AVATAR\n")
-                conn.sendall((str(len(data)) + "\n").encode("utf-8"))
+                conn.sendall((your_filename + "\n").encode("utf-8"))
+                conn.sendall((str(len(your_data)) + "\n").encode("utf-8"))
 
-                if data:
-                    conn.sendall(data)
+                if your_data:
+                    conn.sendall(your_data)
 
-                path = os.path.join(self.images_dir, opponent.image)
+                # аватар суперника
+                opponent_filename = opponent.image if opponent.image else ""
+                opponent_path = os.path.join(self.images_dir, opponent_filename)
 
-                if opponent.image and os.path.isfile(path):
-                    with open(path, "rb") as f:
-                        data = f.read()
+                if opponent_filename and os.path.isfile(opponent_path):
+                    with open(opponent_path, "rb") as f:
+                        opponent_data = f.read()
                 else:
-                    data = b""
+                    opponent_data = b""
 
                 conn.sendall(b"OPPONENT_AVATAR\n")
-                conn.sendall((str(len(data)) + "\n").encode("utf-8"))
+                conn.sendall((opponent_filename + "\n").encode("utf-8"))
+                conn.sendall((str(len(opponent_data)) + "\n").encode("utf-8"))
 
-                if data:
-                    conn.sendall(data)
+                if opponent_data:
+                    conn.sendall(opponent_data)
 
             except Exception as e:
                 print(f"Session #{self.session_id}: avatar send error for {symbol}: {e}")

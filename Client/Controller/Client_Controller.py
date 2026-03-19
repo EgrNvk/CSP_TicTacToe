@@ -172,6 +172,12 @@ class GameClientController:
             self.model.your_name,
             self.model.opponent_name
         )
+
+        self.view.set_avatars(
+            self.model.your_avatar_path,
+            self.model.opponent_avatar_path
+        )
+
         self.view.update_view(
             self.model.board,
             self.model.your_turn,
