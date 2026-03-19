@@ -40,13 +40,13 @@ class GameSession:
 
         while True:
             try:
-                data = conn.recv(1024).decode()
+                line = self.recv_line(conn)
 
-                if not data:
+                if not line:
                     print(f"Session #{self.session_id}: {symbol} disconnected")
                     break
 
-                move = json.loads(data)
+                move = json.loads(line)
                 row = move["row"]
                 col = move["col"]
 
@@ -55,6 +55,22 @@ class GameSession:
             except Exception as e:
                 print(f"Session #{self.session_id}: error for {symbol}: {e}")
                 break
+
+    def recv_line(self, conn):
+        data = b""
+
+        while True:
+            b = conn.recv(1)
+
+            if not b:
+                return ""
+
+            if b == b"\n":
+                break
+
+            data += b
+
+        return data.decode("utf-8", errors="replace")
 
     def move(self, symbol, row, col):
         with self.lock:
@@ -114,6 +130,7 @@ class GameSession:
     def send_start_info(self):
         for symbol, client in self.clients.items():
             conn = client.conn
+            opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             message = {
                 "type": "start",
@@ -121,49 +138,45 @@ class GameSession:
                 "opponent_symbol": "O" if symbol == "X" else "X",
                 "your_login": client.login,
                 "your_name": client.name,
-                "opponent_login": self.clients["O"].login if symbol == "X" else self.clients["X"].login,
-                "opponent_name": self.clients["O"].name if symbol == "X" else self.clients["X"].name
+                "opponent_login": opponent.login,
+                "opponent_name": opponent.name
             }
 
             try:
-                conn.send((json.dumps(message) + "\n").encode())
+                conn.sendall((json.dumps(message) + "\n").encode("utf-8"))
             except Exception as e:
                 print(f"Session #{self.session_id}: start info error for {symbol}: {e}")
 
     def send_avatars(self):
-
         for symbol, client in self.clients.items():
-
             conn = client.conn
-
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             try:
-
                 path = os.path.join(self.images_dir, client.image)
 
-                if os.path.exists(path):
+                if client.image and os.path.isfile(path):
                     with open(path, "rb") as f:
                         data = f.read()
                 else:
                     data = b""
 
                 conn.sendall(b"YOUR_AVATAR\n")
-                conn.sendall((str(len(data)) + "\n").encode())
+                conn.sendall((str(len(data)) + "\n").encode("utf-8"))
 
                 if data:
                     conn.sendall(data)
 
                 path = os.path.join(self.images_dir, opponent.image)
 
-                if os.path.exists(path):
+                if opponent.image and os.path.isfile(path):
                     with open(path, "rb") as f:
                         data = f.read()
                 else:
                     data = b""
 
                 conn.sendall(b"OPPONENT_AVATAR\n")
-                conn.sendall((str(len(data)) + "\n").encode())
+                conn.sendall((str(len(data)) + "\n").encode("utf-8"))
 
                 if data:
                     conn.sendall(data)
@@ -184,6 +197,6 @@ class GameSession:
             }
 
             try:
-                conn.send((json.dumps(message) + "\n").encode())
+                conn.sendall((json.dumps(message) + "\n").encode("utf-8"))
             except Exception as e:
                 print(f"Session #{self.session_id}: broadcast error for {symbol}: {e}")
