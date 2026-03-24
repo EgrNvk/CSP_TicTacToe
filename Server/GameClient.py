@@ -1,6 +1,8 @@
 import json
 import os
 import hashlib
+from cryptography.fernet import Fernet
+from Server.config import FERNET_KEY
 
 
 class GameClient:
@@ -16,6 +18,8 @@ class GameClient:
         self.name = ""
         self.image = ""
         self.state = "connected"
+
+        self.cipher_suite = Fernet(FERNET_KEY)
 
     def prepare(self):
         try:
@@ -119,9 +123,8 @@ class GameClient:
             login = self.recv_line()
             name = self.recv_line()
             ext = self.recv_line()
-            size_line = self.recv_line()
 
-            if not login or not ext or not size_line:
+            if not login or not ext:
                 self.send_line("ERROR BAD UPLOAD HEADER")
                 return False
 
@@ -129,24 +132,19 @@ class GameClient:
                 self.send_line("ERROR LOGIN MISMATCH")
                 return False
 
-            file_size = int(size_line)
-
             os.makedirs(self.images_dir, exist_ok=True)
 
             filename = f"{login}_{name}{ext}"
             filepath = os.path.join(self.images_dir, filename)
 
-            received = 0
+            file_data = self.recv_bytes()
+
+            if file_data is None:
+                self.send_line("ERROR UPLOAD FAILED")
+                return False
 
             with open(filepath, "wb") as f:
-                while received < file_size:
-                    data = self.conn.recv(min(4096, file_size - received))
-
-                    if not data:
-                        return False
-
-                    f.write(data)
-                    received += len(data)
+                f.write(file_data)
 
             with self.users_lock:
                 users = self.load_users()
@@ -183,7 +181,7 @@ class GameClient:
             json.dump(users, f, indent=4, ensure_ascii=False)
 
     def recv_line(self):
-        data = b""
+        token = b""
 
         while True:
             b = self.conn.recv(1)
@@ -194,9 +192,13 @@ class GameClient:
             if b == b"\n":
                 break
 
-            data += b
+            token += b
 
-        return data.decode("utf-8", errors="replace")
+        try:
+            plain = self.cipher_suite.decrypt(token)
+            return plain.decode("utf-8")
+        except:
+            return ""
 
     def recv_json(self):
         line = self.recv_line()
@@ -210,10 +212,40 @@ class GameClient:
             return None
 
     def send_line(self, text):
-        self.conn.sendall((text + "\n").encode("utf-8"))
+        token = self.cipher_suite.encrypt(text.encode("utf-8"))
+        self.conn.sendall(token + b"\n")
 
     def safe_close(self):
         try:
             self.conn.close()
         except:
             pass
+
+    def recv_bytes(self):
+        size_line = self.recv_line()
+
+        if not size_line:
+            return None
+
+        encrypted_size = int(size_line)
+        received = 0
+        encrypted_data = b""
+
+        while received < encrypted_size:
+            chunk = self.conn.recv(min(4096, encrypted_size - received))
+
+            if not chunk:
+                return None
+
+            encrypted_data += chunk
+            received += len(chunk)
+
+        try:
+            return self.cipher_suite.decrypt(encrypted_data)
+        except:
+            return None
+
+    def send_bytes(self, data):
+        encrypted = self.cipher_suite.encrypt(data)
+        self.send_line(str(len(encrypted)))
+        self.conn.sendall(encrypted)

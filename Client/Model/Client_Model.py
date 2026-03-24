@@ -2,6 +2,9 @@ import socket
 import json
 import os
 
+from cryptography.fernet import Fernet
+from Client.config import SERVER_HOST, SERVER_PORT, FERNET_KEY
+
 
 class GameClientModel:
     def __init__(self, host, port):
@@ -10,6 +13,8 @@ class GameClientModel:
 
         self.client = None
         self.current_login = None
+
+        self.cipher_suite = Fernet(FERNET_KEY)
 
         self.board = [
             ["", "", ""],
@@ -46,7 +51,7 @@ class GameClientModel:
             pass
 
     def recv_line(self):
-        data = b""
+        token = b""
 
         while True:
             b = self.client.recv(1)
@@ -57,22 +62,13 @@ class GameClientModel:
             if b == b"\n":
                 break
 
-            data += b
+            token += b
 
-        return data.decode("utf-8", errors="replace")
-
-    def recv_exact(self, size):
-        data = b""
-
-        while len(data) < size:
-            chunk = self.client.recv(size - len(data))
-
-            if not chunk:
-                return b""
-
-            data += chunk
-
-        return data
+        try:
+            plain = self.cipher_suite.decrypt(token)
+            return plain.decode("utf-8")
+        except:
+            return ""
 
     def send_form(self, action, login, password, name=""):
         form = {
@@ -82,10 +78,10 @@ class GameClientModel:
             "name": name
         }
 
-        data = json.dumps(form, ensure_ascii=False) + "\n"
+        data = json.dumps(form, ensure_ascii=False)
 
         try:
-            self.client.sendall(data.encode("utf-8"))
+            self.send_line(data)
 
             resp = self.recv_line()
 
@@ -110,18 +106,15 @@ class GameClientModel:
         size = os.path.getsize(path)
 
         try:
-            self.client.sendall("UPLOAD\n".encode())
-            self.client.sendall((login + "\n").encode())
-            self.client.sendall((name + "\n").encode())
-            self.client.sendall((ext + "\n").encode())
-            self.client.sendall((str(size) + "\n").encode())
+            self.send_line("UPLOAD")
+            self.send_line(login)
+            self.send_line(name)
+            self.send_line(ext)
 
             with open(path, "rb") as f:
-                while True:
-                    data = f.read(1024)
-                    if not data:
-                        break
-                    self.client.sendall(data)
+                file_data = f.read()
+
+            self.send_bytes(file_data)
 
             resp = self.recv_line()
             return resp.strip()
@@ -163,16 +156,16 @@ class GameClientModel:
     def receive_avatars(self):
         os.makedirs("avatars_cache", exist_ok=True)
 
-        # свій аватар
         avatar_type = self.recv_line()
         filename = self.recv_line()
-        size_line = self.recv_line()
 
         if avatar_type != "YOUR_AVATAR":
             return None
 
-        size = int(size_line) if size_line else 0
-        data = self.recv_exact(size) if size > 0 else b""
+        data = self.recv_bytes()
+
+        if data is None:
+            return None
 
         self.your_avatar_filename = filename
         if filename:
@@ -182,16 +175,16 @@ class GameClientModel:
         else:
             self.your_avatar_path = ""
 
-        # аватар суперника
         avatar_type = self.recv_line()
         filename = self.recv_line()
-        size_line = self.recv_line()
 
         if avatar_type != "OPPONENT_AVATAR":
             return None
 
-        size = int(size_line) if size_line else 0
-        data = self.recv_exact(size) if size > 0 else b""
+        data = self.recv_bytes()
+
+        if data is None:
+            return None
 
         self.opponent_avatar_filename = filename
         if filename:
@@ -234,7 +227,43 @@ class GameClientModel:
         }
 
         try:
-            data = json.dumps(move) + "\n"
-            self.client.sendall(data.encode("utf-8"))
+            self.send_line(json.dumps(move))
         except:
             pass
+
+    def send_line(self, text):
+        token = self.cipher_suite.encrypt(text.encode("utf-8"))
+        self.client.sendall(token + b"\n")
+
+    def send_bytes(self, data):
+        encrypted = self.cipher_suite.encrypt(data)
+        self.send_line(str(len(encrypted)))
+        self.client.sendall(encrypted)
+
+    def recv_bytes(self):
+        size_line = self.recv_line()
+
+        if not size_line:
+            return None
+
+        try:
+            encrypted_size = int(size_line)
+        except:
+            return None
+
+        received = 0
+        encrypted_data = b""
+
+        while received < encrypted_size:
+            chunk = self.client.recv(min(4096, encrypted_size - received))
+
+            if not chunk:
+                return None
+
+            encrypted_data += chunk
+            received += len(chunk)
+
+        try:
+            return self.cipher_suite.decrypt(encrypted_data)
+        except:
+            return None

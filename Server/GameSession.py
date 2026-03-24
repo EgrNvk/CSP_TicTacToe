@@ -36,11 +36,10 @@ class GameSession:
 
     def service_client(self, symbol):
         client = self.clients[symbol]
-        conn = client.conn
 
         while True:
             try:
-                line = self.recv_line(conn)
+                line = client.recv_line()
 
                 if not line:
                     print(f"Session #{self.session_id}: {symbol} disconnected")
@@ -55,22 +54,6 @@ class GameSession:
             except Exception as e:
                 print(f"Session #{self.session_id}: error for {symbol}: {e}")
                 break
-
-    def recv_line(self, conn):
-        data = b""
-
-        while True:
-            b = conn.recv(1)
-
-            if not b:
-                return ""
-
-            if b == b"\n":
-                break
-
-            data += b
-
-        return data.decode("utf-8", errors="replace")
 
     def move(self, symbol, row, col):
         with self.lock:
@@ -129,7 +112,6 @@ class GameSession:
 
     def send_start_info(self):
         for symbol, client in self.clients.items():
-            conn = client.conn
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             message = {
@@ -143,13 +125,12 @@ class GameSession:
             }
 
             try:
-                conn.sendall((json.dumps(message) + "\n").encode("utf-8"))
+                client.send_line(json.dumps(message))
             except Exception as e:
                 print(f"Session #{self.session_id}: start info error for {symbol}: {e}")
 
     def send_avatars(self):
         for symbol, client in self.clients.items():
-            conn = client.conn
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             try:
@@ -163,12 +144,9 @@ class GameSession:
                 else:
                     your_data = b""
 
-                conn.sendall(b"YOUR_AVATAR\n")
-                conn.sendall((your_filename + "\n").encode("utf-8"))
-                conn.sendall((str(len(your_data)) + "\n").encode("utf-8"))
-
-                if your_data:
-                    conn.sendall(your_data)
+                client.send_line("YOUR_AVATAR")
+                client.send_line(your_filename)
+                client.send_bytes(your_data)
 
                 # аватар суперника
                 opponent_filename = opponent.image if opponent.image else ""
@@ -180,20 +158,15 @@ class GameSession:
                 else:
                     opponent_data = b""
 
-                conn.sendall(b"OPPONENT_AVATAR\n")
-                conn.sendall((opponent_filename + "\n").encode("utf-8"))
-                conn.sendall((str(len(opponent_data)) + "\n").encode("utf-8"))
-
-                if opponent_data:
-                    conn.sendall(opponent_data)
+                client.send_line("OPPONENT_AVATAR")
+                client.send_line(opponent_filename)
+                client.send_bytes(opponent_data)
 
             except Exception as e:
                 print(f"Session #{self.session_id}: avatar send error for {symbol}: {e}")
 
     def broadcast(self):
         for symbol, client in self.clients.items():
-            conn = client.conn
-
             message = {
                 "type": "game_state",
                 "board": self.board,
@@ -203,6 +176,6 @@ class GameSession:
             }
 
             try:
-                conn.sendall((json.dumps(message) + "\n").encode("utf-8"))
+                client.send_line(json.dumps(message))
             except Exception as e:
                 print(f"Session #{self.session_id}: broadcast error for {symbol}: {e}")
