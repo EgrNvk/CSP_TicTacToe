@@ -184,3 +184,7 @@ cython_debug/
 # local configs
 Server/config.py
 Client/config.py
+
+Server/images/
+Server/users.json
+Client/avatars_cache/

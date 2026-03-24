@@ -6,7 +6,7 @@ from Server.GameSession import GameSession
 
 
 class GameServer:
-    def __init__(self, host="127.0.0.1", port=4000):
+    def __init__(self, host, port):
         self.host = host
         self.port = port
 
