@@ -134,7 +134,7 @@ class GameSession:
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             try:
-                # свій аватар
+
                 your_filename = client.image if client.image else ""
                 your_path = os.path.join(self.images_dir, your_filename)
 
@@ -148,7 +148,7 @@ class GameSession:
                 client.send_line(your_filename)
                 client.send_bytes(your_data)
 
-                # аватар суперника
+
                 opponent_filename = opponent.image if opponent.image else ""
                 opponent_path = os.path.join(self.images_dir, opponent_filename)
 
@@ -179,3 +179,42 @@ class GameSession:
                 client.send_line(json.dumps(message))
             except Exception as e:
                 print(f"Session #{self.session_id}: broadcast error for {symbol}: {e}")
+
+    def get_info(self):
+        return {
+            "session_id": self.session_id,
+            "x_login": self.clients["X"].login if self.clients.get("X") else "",
+            "o_login": self.clients["O"].login if self.clients.get("O") else "",
+            "current_turn": self.current_turn,
+            "winner": self.winner
+        }
+
+    def kick_player(self, symbol):
+        client = self.clients.get(symbol)
+
+        if not client:
+            return
+
+        try:
+            client.conn.close()
+        except:
+            pass
+
+        other_symbol = "O" if symbol == "X" else "X"
+        other = self.clients.get(other_symbol)
+
+        try:
+            if other:
+                other.send_line(json.dumps({
+                    "type": "opponent_disconnected"
+                }))
+        except:
+            pass
+
+    def close_session(self):
+        for client in self.clients.values():
+            try:
+                client.conn.close()
+            except:
+                pass
+
