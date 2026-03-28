@@ -72,7 +72,8 @@ class GameServer:
             session = GameSession(
                 session_id=self.next_session_id,
                 player_x=player_x,
-                player_o=player_o
+                player_o=player_o,
+                game_server=self
             )
 
             self.sessions.append(session)
@@ -91,3 +92,9 @@ class GameServer:
             player_o.send_line("OPPONENT_FOUND")
 
             session.start()
+
+    def remove_session(self, session_id):
+        with self.match_lock:
+            self.sessions = [s for s in self.sessions if s.session_id != session_id]
+
+        print(f"\nСесію #{session_id} видалено")

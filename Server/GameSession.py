@@ -4,8 +4,9 @@ import os
 
 
 class GameSession:
-    def __init__(self, session_id, player_x, player_o):
+    def __init__(self, session_id, player_x, player_o, game_server):
         self.session_id = session_id
+        self.game_server = game_server
 
         self.clients = {
             "X": player_x,
@@ -23,6 +24,8 @@ class GameSession:
         self.lock = threading.Lock()
 
         self.images_dir = "images"
+
+        self.is_closed = False
 
     def start(self):
         print(f"Session #{self.session_id} started")
@@ -43,6 +46,7 @@ class GameSession:
 
                 if not line:
                     print(f"Session #{self.session_id}: {symbol} disconnected")
+                    self.close_session()
                     break
 
                 move = json.loads(line)
@@ -53,6 +57,7 @@ class GameSession:
 
             except Exception as e:
                 print(f"Session #{self.session_id}: error for {symbol}: {e}")
+                self.close_session()
                 break
 
     def move(self, symbol, row, col):
@@ -212,9 +217,16 @@ class GameSession:
             pass
 
     def close_session(self):
+        with self.lock:
+            if self.is_closed:
+                return
+            self.is_closed = True
+
         for client in self.clients.values():
             try:
                 client.conn.close()
             except:
                 pass
 
+        if self.game_server:
+            self.game_server.remove_session(self.session_id)
