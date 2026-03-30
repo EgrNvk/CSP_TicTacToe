@@ -189,4 +189,5 @@ Server/images/
 Server/users.json
 Client/avatars_cache/
 
-Server/db/
+Server/db/Tic-Tac-Toe_DB.sql
+
