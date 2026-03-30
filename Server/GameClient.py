@@ -1,4 +1,3 @@
-import json
 import os
 import hashlib
 from cryptography.fernet import Fernet
@@ -6,13 +5,12 @@ from Server.config import FERNET_KEY
 
 
 class GameClient:
-    def __init__(self, conn, addr, users_file, images_dir, users_lock):
+    def __init__(self, conn, addr, images_dir, user_repo):
         self.conn = conn
         self.addr = addr
 
-        self.users_file = users_file
         self.images_dir = images_dir
-        self.users_lock = users_lock
+        self.user_repo = user_repo
 
         self.login = ""
         self.name = ""
@@ -81,36 +79,24 @@ class GameClient:
             return False
 
     def process_auth(self, action, login, password, name):
-        with self.users_lock:
-            users = self.load_users()
+        password_hash = self.hash_password(password)
 
-            if action == "register":
-                if login in users:
-                    return False, "ERROR USER EXISTS", "", ""
+        if action == "register":
+            created = self.user_repo.create_user(login, password_hash, name)
+            if not created:
+                return False, "ERROR USER EXISTS", "", ""
+            return True, "OK REGISTER", name, ""
 
-                users[login] = {
-                    "password": self.hash_password(password),
-                    "name": name,
-                    "image": ""
-                }
+        elif action == "login":
+            user = self.user_repo.find_by_login(login)
+            if user is None:
+                return False, "ERROR USER NOT FOUND", "", ""
+            if user["password_hash"] != password_hash:
+                return False, "ERROR WRONG PASSWORD", "", ""
+            return True, "OK LOGIN", user["name"], user["image"]
 
-                self.save_users(users)
-                return True, "OK REGISTER", name, ""
-
-            elif action == "login":
-                if login not in users:
-                    return False, "ERROR USER NOT FOUND", "", ""
-
-                if users[login]["password"] != self.hash_password(password):
-                    return False, "ERROR WRONG PASSWORD", "", ""
-
-                stored_name = users[login].get("name", "")
-                stored_image = users[login].get("image", "")
-
-                return True, "OK LOGIN", stored_name, stored_image
-
-            else:
-                return False, "ERROR UNKNOWN ACTION", "", ""
+        else:
+            return False, "ERROR UNKNOWN ACTION", "", ""
 
     def handle_avatar_upload(self):
         try:
@@ -146,15 +132,10 @@ class GameClient:
             with open(filepath, "wb") as f:
                 f.write(file_data)
 
-            with self.users_lock:
-                users = self.load_users()
-
-                if login in users:
-                    users[login]["image"] = filename
-                    self.save_users(users)
-                else:
-                    self.send_line("ERROR USER NOT FOUND")
-                    return False
+            updated = self.user_repo.update_image(login, filename)
+            if not updated:
+                self.send_line("ERROR USER NOT FOUND")
+                return False
 
             self.image = filename
             self.send_line("OK FILE UPLOADED")
@@ -168,17 +149,6 @@ class GameClient:
 
     def hash_password(self, password):
         return hashlib.sha256(password.encode()).hexdigest()
-
-    def load_users(self):
-        if not os.path.exists(self.users_file):
-            return {}
-
-        with open(self.users_file, "r", encoding="utf-8") as f:
-            return json.load(f)
-
-    def save_users(self, users):
-        with open(self.users_file, "w", encoding="utf-8") as f:
-            json.dump(users, f, indent=4, ensure_ascii=False)
 
     def recv_line(self):
         token = b""
@@ -207,6 +177,7 @@ class GameClient:
             return None
 
         try:
+            import json
             return json.loads(line)
         except:
             return None

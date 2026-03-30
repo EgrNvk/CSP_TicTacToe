@@ -188,3 +188,5 @@ Client/config.py
 Server/images/
 Server/users.json
 Client/avatars_cache/
+
+Server/db/

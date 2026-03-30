@@ -3,10 +3,11 @@ import threading
 
 from Server.GameClient import GameClient
 from Server.GameSession import GameSession
+from Server.config import IMAGES_DIR
 
 
 class GameServer:
-    def __init__(self, host, port):
+    def __init__(self, host, port, user_repo):
         self.host = host
         self.port = port
 
@@ -14,10 +15,9 @@ class GameServer:
         self.server.bind((self.host, self.port))
         self.server.listen()
 
-        self.users_file = "users.json"
-        self.images_dir = "images"
+        self.user_repo = user_repo
+        self.images_dir = IMAGES_DIR
 
-        self.users_lock = threading.Lock()
         self.match_lock = threading.Lock()
 
         self.waiting_player = None
@@ -42,9 +42,8 @@ class GameServer:
         client = GameClient(
             conn=conn,
             addr=addr,
-            users_file=self.users_file,
             images_dir=self.images_dir,
-            users_lock=self.users_lock
+            user_repo=self.user_repo
         )
 
         ready = client.prepare()
