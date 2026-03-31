@@ -103,7 +103,6 @@ class GameClientModel:
 
         filename = os.path.basename(path)
         name, ext = os.path.splitext(filename)
-        size = os.path.getsize(path)
 
         try:
             self.send_line("UPLOAD")
@@ -230,6 +229,24 @@ class GameClientModel:
             self.send_line(json.dumps(move))
         except:
             pass
+
+    def send_play_again(self):
+        try:
+            self.send_line(json.dumps({"type": "play_again"}))
+        except:
+            pass
+
+    def reset_game_state(self):
+        self.board = [["", "", ""], ["", "", ""], ["", "", ""]]
+        self.current_turn = "X"
+        self.your_turn = False
+        self.winner = None
+        self.your_symbol = None
+        self.opponent_symbol = None
+        self.opponent_login = ""
+        self.opponent_name = ""
+        self.your_avatar_path = ""
+        self.opponent_avatar_path = ""
 
     def send_line(self, text):
         token = self.cipher_suite.encrypt(text.encode("utf-8"))
