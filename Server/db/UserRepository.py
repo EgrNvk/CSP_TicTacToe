@@ -53,6 +53,39 @@ class UserRepository:
 
         return [{"login": row.Login} for row in rows]
 
+    def save_game(self, game_id: int, login: str, opponent_login: str, result: str) -> None:
+        with _get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO game_history (game_id, login, opponent_login, result) VALUES (?, ?, ?, ?)",
+                (game_id, login, opponent_login, result)
+            )
+            conn.commit()
+
+    def get_user_history(self, login: str) -> list:
+        with _get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT game_id, opponent_login, result, played_at
+                FROM game_history
+                WHERE login = ?
+                ORDER BY played_at DESC
+                """,
+                (login,)
+            )
+            rows = cursor.fetchall()
+
+        return [
+            {
+                "game_id": row.game_id,
+                "opponent_login": row.opponent_login,
+                "result": row.result,
+                "played_at": row.played_at.strftime("%Y-%m-%d %H:%M")
+            }
+            for row in rows
+        ]
+
     def update_image(self, login: str, filename: str) -> bool:
         with _get_connection() as conn:
             cursor = conn.cursor()
