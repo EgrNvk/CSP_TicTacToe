@@ -18,6 +18,7 @@ class GameClientController:
         self.view.btn_login.config(command=self.login)
         self.view.btn_register.config(command=self.register)
         self.view.btn_upload.config(command=self.upload_avatar)
+        self.view.btn_continue.config(command=self.play_again)
 
     def back_to_start(self):
         self.view.show_start()
@@ -181,7 +182,8 @@ class GameClientController:
         self.view.update_view(
             self.model.board,
             self.model.your_turn,
-            self.model.winner
+            self.model.winner,
+            self.model.your_symbol
         )
 
     def click_cell(self, row, col):
@@ -201,5 +203,16 @@ class GameClientController:
                 self.view.update_view,
                 self.model.board,
                 self.model.your_turn,
-                self.model.winner
+                self.model.winner,
+                self.model.your_symbol
             )
+
+            if self.model.winner is not None:
+                self.view.root.after(0, self.view.show_continue_button)
+                break
+
+    def play_again(self):
+        self.view.hide_continue_button()
+        self.model.send_play_again()
+        self.model.reset_game_state()
+        self.start_waiting()
