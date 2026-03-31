@@ -144,6 +144,13 @@ class GameClientView:
 
             self.buttons.append(button_row)
 
+        self.btn_continue = tk.Button(
+            self.game_frame,
+            text="Продовжити",
+            font=("Arial", 13),
+            width=18
+        )
+
     def show_frame(self, frame):
         self.start_frame.pack_forget()
         self.login_frame.pack_forget()
@@ -170,7 +177,14 @@ class GameClientView:
         self.show_frame(self.waiting_frame)
 
     def show_game(self):
+        self.btn_continue.pack_forget()
         self.show_frame(self.game_frame)
+
+    def show_continue_button(self):
+        self.btn_continue.pack(pady=(15, 0))
+
+    def hide_continue_button(self):
+        self.btn_continue.pack_forget()
 
     def get_login(self):
         return self.login_entry.get()
@@ -224,7 +238,7 @@ class GameClientView:
                     command=lambda r=row, c=col: callback(r, c)
                 )
 
-    def update_view(self, board, your_turn, winner):
+    def update_view(self, board, your_turn, winner, your_symbol=None):
         for row in range(3):
             for col in range(3):
                 value = board[row][col]
@@ -236,8 +250,15 @@ class GameClientView:
 
                 self.buttons[row][col].config(text=value, state=state)
 
-        if winner == "X" or winner == "O":
-            self.label_status.config(text=f"Переміг {winner}")
+        if winner == "draw":
+            self.label_status.config(text="Нічия!")
+        elif winner is not None:
+            if your_symbol and winner == your_symbol:
+                self.label_status.config(text="Ви перемогли!")
+            elif your_symbol:
+                self.label_status.config(text="Ви програли.")
+            else:
+                self.label_status.config(text=f"Переміг {winner}")
         else:
             if your_turn:
                 self.label_status.config(text="Ваш хід")
