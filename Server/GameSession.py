@@ -26,6 +26,7 @@ class GameSession:
         self.images_dir = "images"
 
         self.is_closed = False
+        self.history_saved = False
 
     def start(self):
         print(f"Session #{self.session_id} started")
@@ -49,9 +50,15 @@ class GameSession:
                     self.close_session()
                     break
 
-                move = json.loads(line)
-                row = move["row"]
-                col = move["col"]
+                message = json.loads(line)
+
+                if message.get("type") == "play_again":
+                    if self.winner is not None:
+                        self._handle_play_again(symbol, client)
+                    break
+
+                row = message["row"]
+                col = message["col"]
 
                 self.move(symbol, row, col)
 
@@ -59,6 +66,17 @@ class GameSession:
                 print(f"Session #{self.session_id}: error for {symbol}: {e}")
                 self.close_session()
                 break
+
+    def _handle_play_again(self, symbol, client):
+        with self.lock:
+            self.clients.pop(symbol, None)
+            all_left = len(self.clients) == 0
+
+        if all_left and self.game_server:
+            self.game_server.remove_session(self.session_id)
+
+        print(f"Session #{self.session_id}: {symbol} goes to rematch")
+        self.game_server.add_to_matchmaking(client)
 
     def move(self, symbol, row, col):
         with self.lock:
@@ -78,10 +96,42 @@ class GameSession:
 
             if self.check_winner(symbol):
                 self.winner = symbol
+                self._save_history(winner_symbol=symbol)
             else:
-                self.current_turn = "O" if self.current_turn == "X" else "X"
+                all_filled = all(
+                    self.board[r][c] != ""
+                    for r in range(3)
+                    for c in range(3)
+                )
+                if all_filled:
+                    self.winner = "draw"
+                    self._save_history(winner_symbol=None)
+                else:
+                    self.current_turn = "O" if self.current_turn == "X" else "X"
 
             self.broadcast()
+
+    def _save_history(self, winner_symbol):
+        if self.history_saved:
+            return
+        self.history_saved = True
+
+        try:
+            user_repo = self.game_server.user_repo
+            x_login = self.clients["X"].login
+            o_login = self.clients["O"].login
+
+            if winner_symbol is None:
+                user_repo.save_game(self.session_id, x_login, o_login, "draw")
+                user_repo.save_game(self.session_id, o_login, x_login, "draw")
+            else:
+                loser_symbol = "O" if winner_symbol == "X" else "X"
+                winner_login = self.clients[winner_symbol].login
+                loser_login = self.clients[loser_symbol].login
+                user_repo.save_game(self.session_id, winner_login, loser_login, "win")
+                user_repo.save_game(self.session_id, loser_login, winner_login, "loss")
+        except Exception as e:
+            print(f"Session #{self.session_id}: failed to save history: {e}")
 
     def check_winner(self, symbol):
         for i in range(3):
@@ -139,7 +189,6 @@ class GameSession:
             opponent = self.clients["O"] if symbol == "X" else self.clients["X"]
 
             try:
-
                 your_filename = client.image if client.image else ""
                 your_path = os.path.join(self.images_dir, your_filename)
 
@@ -152,7 +201,6 @@ class GameSession:
                 client.send_line("YOUR_AVATAR")
                 client.send_line(your_filename)
                 client.send_bytes(your_data)
-
 
                 opponent_filename = opponent.image if opponent.image else ""
                 opponent_path = os.path.join(self.images_dir, opponent_filename)
@@ -222,7 +270,13 @@ class GameSession:
                 return
             self.is_closed = True
 
-        for client in self.clients.values():
+            if self.winner is None:
+                self._save_history(winner_symbol=None)
+
+            clients_to_close = list(self.clients.values())
+            self.clients.clear()
+
+        for client in clients_to_close:
             try:
                 client.conn.close()
             except:
