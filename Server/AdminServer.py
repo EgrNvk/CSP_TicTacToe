@@ -93,6 +93,14 @@ class AdminServer:
                     "users": users
                 })
 
+            elif msg_type == "get_user_history":
+                login = data.get("login")
+                history = self.get_user_history(login)
+                self.send_json(conn, {
+                    "type": "user_history",
+                    "history": history
+                })
+
         try:
             conn.close()
         except:
@@ -114,6 +122,12 @@ class AdminServer:
     def get_users(self):
         try:
             return self.game_server.user_repo.get_all_users()
+        except:
+            return []
+
+    def get_user_history(self, login):
+        try:
+            return self.game_server.user_repo.get_user_history(login)
         except:
             return []
 
