@@ -86,6 +86,13 @@ class AdminServer:
                     "type": "close_ok"
                 })
 
+            elif msg_type == "get_users":
+                users = self.get_users()
+                self.send_json(conn, {
+                    "type": "users_list",
+                    "users": users
+                })
+
         try:
             conn.close()
         except:
@@ -103,6 +110,12 @@ class AdminServer:
                 pass
 
         return result
+
+    def get_users(self):
+        try:
+            return self.game_server.user_repo.get_all_users()
+        except:
+            return []
 
     def kick_player(self, session_id, symbol):
         for session in self.game_server.sessions:

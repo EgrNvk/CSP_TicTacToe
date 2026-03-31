@@ -45,6 +45,14 @@ class UserRepository:
         except pyodbc.IntegrityError:
             return False
 
+    def get_all_users(self) -> list:
+        with _get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT Login FROM users ORDER BY Login")
+            rows = cursor.fetchall()
+
+        return [{"login": row.Login} for row in rows]
+
     def update_image(self, login: str, filename: str) -> bool:
         with _get_connection() as conn:
             cursor = conn.cursor()
