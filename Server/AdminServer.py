@@ -101,6 +101,14 @@ class AdminServer:
                     "history": history
                 })
 
+            elif msg_type == "get_game_moves":
+                game_id = data.get("game_id")
+                moves = self.get_game_moves(game_id)
+                self.send_json(conn, {
+                    "type": "game_moves",
+                    "moves": moves
+                })
+
         try:
             conn.close()
         except:
@@ -128,6 +136,12 @@ class AdminServer:
     def get_user_history(self, login):
         try:
             return self.game_server.user_repo.get_user_history(login)
+        except:
+            return []
+
+    def get_game_moves(self, game_id):
+        try:
+            return self.game_server.user_repo.get_game_moves(game_id)
         except:
             return []
 

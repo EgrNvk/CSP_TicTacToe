@@ -27,6 +27,7 @@ class GameSession:
 
         self.is_closed = False
         self.history_saved = False
+        self.move_number = 0
 
     def start(self):
         print(f"Session #{self.session_id} started")
@@ -78,6 +79,24 @@ class GameSession:
         print(f"Session #{self.session_id}: {symbol} goes to rematch")
         self.game_server.add_to_matchmaking(client)
 
+    def _save_move(self, symbol, row, col):
+        try:
+            user_repo = self.game_server.user_repo
+            login = self.clients[symbol].login
+
+            self.move_number += 1
+
+            user_repo.save_move(
+                game_id=self.session_id,
+                move_number=self.move_number,
+                login=login,
+                player_symbol=symbol,
+                row_num=row,
+                col_num=col
+            )
+        except Exception as e:
+            print(f"Session #{self.session_id}: failed to save move: {e}")
+
     def move(self, symbol, row, col):
         with self.lock:
             if self.winner is not None:
@@ -93,6 +112,7 @@ class GameSession:
                 return
 
             self.board[row][col] = symbol
+            self._save_move(symbol, row, col)
 
             if self.check_winner(symbol):
                 self.winner = symbol

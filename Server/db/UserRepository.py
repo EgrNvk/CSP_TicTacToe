@@ -86,6 +86,45 @@ class UserRepository:
             for row in rows
         ]
 
+    def save_move(self, game_id, move_number, login, player_symbol, row_num, col_num):
+        with _get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT INTO game_moves (game_id, move_number, login, player_symbol, row_num, col_num)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (game_id, move_number, login, player_symbol, row_num, col_num)
+            )
+            conn.commit()
+
+    def get_game_moves(self, game_id):
+        with _get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT move_number, login, player_symbol, row_num, col_num, played_at
+                FROM game_moves
+                WHERE game_id = ?
+                ORDER BY move_number ASC
+                """,
+                (game_id,)
+            )
+            rows = cursor.fetchall()
+
+        return [
+            {
+                "move_number": row.move_number,
+                "login": row.login,
+                "player": row.player_symbol,
+                "row": row.row_num,
+                "col": row.col_num,
+                "position": f"({row.row_num}, {row.col_num})",
+                "played_at": row.played_at.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            for row in rows
+        ]
+
     def update_image(self, login: str, filename: str) -> bool:
         with _get_connection() as conn:
             cursor = conn.cursor()
